@@ -10,7 +10,9 @@ from os import walk
 
 class glb:
     fileName = "lhy"
-
+    outputFolderName = "results"
+    #absolutePath = "/var/www/html/"
+    absolutePath = ""
 
 class MySpider(scrapy.Spider):
     name = 'MySpider'
@@ -34,7 +36,7 @@ class MySpider(scrapy.Spider):
         self.initUrl()
 
     def spider_closed(self, spider, reason):
-        html = open("results/" + glb.fileName + ".html","w")
+        html = open(glb.absolutePath + glb.outputFolderName + "/" + glb.fileName + ".html","w")
 
         html.writelines("<meta charset=\"utf-8\"> ")
         html.writelines("<html lang=\"en\">")
@@ -102,11 +104,11 @@ class MySpider(scrapy.Spider):
                 else:
                     tr = tr.replace(u'搜字幕', str(num_subtitle) + " Subtitles")
 
-
-            tr = tr.replace("/Application/Home/View/Public/static/images/","")
             tr = tr.replace("href=\"/", "href=\"http://www.ttmeiju.me/")
-            tr = tr.replace("<span class=\"loadspan\"><img width=\"20px;\" src=\"loading.gif\"></span>","")
+            tr = tr.replace("/Application/Home/View/Public/static/images/","../logo/")
+            tr = tr.replace("<span class=\"loadspan\"><img width=\"20px;\" src=\"../logo/loading.gif\"></span>","")
             tr = tr.replace("style=\"display:none;\"","")
+            
 
 
             self.rows.append((row_no,tr))
@@ -162,8 +164,10 @@ def run_spider(spider):
 def main():
     for _,_,fileName in walk('users'):
         for fn in fileName:
+            if fn == "README.md":
+                continue
             glb.fileName = fn.split('.')[0]
-            print(glb.fileName)
+            print("------------------------>" + glb.fileName)
             run_spider(MySpider)
 
 if __name__ == "__main__":
