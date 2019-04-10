@@ -6,15 +6,10 @@ from scrapy import signals
 
 class LatestSpider(scrapy.Spider):
     name = "latest" 
-    start_urls = [
-        "http://www.ttmeiju.me/meiju/Billions.html",
-        "http://www.ttmeiju.me/latest-1.html",
-        "http://www.ttmeiju.me/latest-2.html",
-        "http://www.ttmeiju.me/latest-3.html"
-    ]
+    start_urls = []
+    with_subtitle = {}
+    
 
-    #blacklist of the tv shows
-    blacklist =[]
     #html table rows
     #an item in rows is like (page number, row number, html object of the row)
     rows = []
@@ -27,11 +22,10 @@ class LatestSpider(scrapy.Spider):
         return spider
 
     def spider_opend(self, spider):
-        #self.initBlacklist()
-        pass
+        self.initUrl()
 
     def spider_closed(self, spider, reason):
-        html = open("latest.html","w")
+        html = open("lhy.html","w")
 
         html.writelines("<html lang=\"en\">")
         html.writelines("<head>")
@@ -39,71 +33,67 @@ class LatestSpider(scrapy.Spider):
         
         html.writelines("</head>")
         html.writelines("<table>")
-        for page_no,row_no, tr in self.rows:
+        for row_no, tr in self.rows:
             html.writelines(tr)    
         html.writelines("</table>")    
         pass
 
     def parse(self, response):
         url = response.url
-        page_no = url.replace("http://www.ttmeiju.me/latest-","").replace(".html","")
-        page_no = int(page_no)
-        #date
-        dateString = response.css(".active::text")[1].extract().encode("gbk")
-        header_tr = "<tr><th colspan=6>"+str(dateString)+"</th></tr>"
-        self.rows.append((page_no,-1,header_tr))
-        rows = response.css(".latesttable tr")
-        for row_no in range(1,len(rows)):
-            title_u = rows[row_no].css("td")[1].css("a::attr(title)").extract_first()
-            title = title_u.encode("gbk")
+        showName = url.replace("http://www.ttmeiju.me/meiju/","").replace(".html","")
+        
+        # Season
+        season = response.css("h3[class=curseason]::text").extract_first().strip()
+        header_tr = "<tr><th colspan=6>"+showName + " " + season+"</th></tr>"
+        self.rows.append((-1,header_tr))
 
-            if self.inBlacklist(title):
+        rows = response.css("#seedlist tr")
+        for row_no in range(len(rows)):
+
+            # for each row  
+            # filter out irrelevent 
+            cols = rows[row_no].css("td")
+            # 0 -> checkbox
+            # 1 -> title
+            # 2 -> dowlnoad
+            # 3 -> watch online
+            # 4 -> baidu-code
+            # 5 -> size
+            # 6 -> quality
+            # 7 -> subtitle
+            # 8 -> publish time
+            title = cols[1].css('a[href]::text').extract_first().strip()
+            quality = cols[6].css('td::text').extract_first().strip()
+
+            # 普清
+            if quality == u'\u666e\u6e05':
                 continue
 
+            # 熟肉
+            if self.with_subtitle[url]:
+                if quality != u'\u719f\u8089':
+                    continue
+            else:
+                if quality == u'\u719f\u8089':
+                    continue
 
             tr = rows[row_no].extract()
+            tr = tr.replace(cols[0].extract(), "")
+            tr = tr.replace(cols[3].extract(), "")
             tr = tr.replace("/Application/Home/View/Public/static/images/","")
             tr = tr.replace("href=\"/", "href=\"http://www.ttmeiju.me/")
-            #added 2017-7-31
             tr = tr.replace("<span class=\"loadspan\"><img width=\"20px;\" src=\"loading.gif\"></span>","")
             tr = tr.replace("style=\"display:none;\"","")
-            #end added 2017-7-31
-
-            #if you want to filter out tv shows without subtitles,
-            #uncomment this.
-            #u'\u65e0\u5b57\u5e55' = "wu zi mu" = no subtitles
-            if u'\u65e0\u5b57\u5e55' in tr:
-                continue
-
-            #if you want to filter out tv shows with subtitles,
-            #uncomment this.
-            #u'\u5185\u5d4c\u53cc\u8bed\u5b57\u5e55' = "nei qian shuang yu zimu"
-#            if u'\u5185\u5d4c\u53cc\u8bed\u5b57\u5e55'.encode("gbk") in tr:
-#                continue
-
-            #if you want to filter out tv shows with solution lower than 720p,
-            #uncomment this
-            #u'\u666e\u6e05' = u"pu qing"
-            if u'\u666e\u6e05' in tr:
-                continue
-
-            self.rows.append((page_no,row_no,tr))
 
 
-    def initBlacklist(self):
-        fh = open('blacklist.txt')
-        self.blacklist = fh.readlines() 
-        fh.close()
-        for i in range(0,len(self.blacklist)):
-            self.blacklist[i] = self.blacklist[i].replace("\n","")
+            self.rows.append((row_no,tr))
 
-    def inBlacklist(self,title):
-        for b in self.blacklist:
-            if b in title:
-                return True
-        return False
 
-    def compareRow(self,a,b):
-        a_p, a_r, a_row = a
-        b_p, b_r, b_row = b
-        return a_p * 1000 + a_r - b_p *1000 + b_r
+    def initUrl(self):
+        with open('lhy.txt', 'r') as infile:
+            for line in infile.readlines():
+                url, subtitle = line.split()
+                self.start_urls.append(url)
+                self.with_subtitle[url] = bool(int(subtitle))
+                
+
