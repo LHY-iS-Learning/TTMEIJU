@@ -1,11 +1,20 @@
 #!/usr/bin/python  
 
 # -*- coding: utf-8 -*-
+from twisted.internet import reactor
 import scrapy
 from scrapy import signals 
+from scrapy.crawler import CrawlerRunner
+from multiprocessing import Process, Queue
+from os import walk
 
-class LatestSpider(scrapy.Spider):
-    name = "latest" 
+class glb:
+    fileName = "lhy"
+
+
+class MySpider(scrapy.Spider):
+    name = 'MySpider'
+    
     start_urls = []
     with_subtitle = {}
     
@@ -16,7 +25,7 @@ class LatestSpider(scrapy.Spider):
 
     @classmethod
     def from_crawler(cls, crawler, *args, **kwargs):
-        spider = super(LatestSpider, cls).from_crawler(crawler, *args, **kwargs)
+        spider = super(MySpider, cls).from_crawler(crawler, *args, **kwargs)
         crawler.signals.connect(spider.spider_closed, signal=signals.spider_closed)
         crawler.signals.connect(spider.spider_opend, signal=signals.spider_opened)
         return spider
@@ -25,8 +34,9 @@ class LatestSpider(scrapy.Spider):
         self.initUrl()
 
     def spider_closed(self, spider, reason):
-        html = open("lhy.html","w")
+        html = open("results/" + glb.fileName + ".html","w")
 
+        html.writelines("<meta charset=\"utf-8\"> ")
         html.writelines("<html lang=\"en\">")
         html.writelines("<head>")
         html.writelines("<title>LHY_iS_Learning</title>")
@@ -65,11 +75,11 @@ class LatestSpider(scrapy.Spider):
             title = cols[1].css('a[href]::text').extract_first().strip()
             quality = cols[6].css('td::text').extract_first().strip()
 
-            # 普清
+            # pu qing
             if quality == u'\u666e\u6e05':
                 continue
 
-            # 熟肉
+            # shu rou
             if self.with_subtitle[url]:
                 if quality != u'\u719f\u8089':
                     continue
@@ -80,6 +90,19 @@ class LatestSpider(scrapy.Spider):
             tr = rows[row_no].extract()
             tr = tr.replace(cols[0].extract(), "")
             tr = tr.replace(cols[3].extract(), "")
+
+            if tr.find("http://www.zimuku.la/") != -1:
+                subtitle_url = "http://www.subhd.com/search0/"+title
+                tr = tr.replace("http://www.zimuku.la/", subtitle_url)
+                num_subtitle = get_subtitle(subtitle_url)
+                if num_subtitle == 0:
+                    tr = tr.replace(u'搜字幕', "No Subtitle Yet")
+                elif num_subtitle == -1:
+                    pass
+                else:
+                    tr = tr.replace(u'搜字幕', str(num_subtitle) + " Subtitles")
+
+
             tr = tr.replace("/Application/Home/View/Public/static/images/","")
             tr = tr.replace("href=\"/", "href=\"http://www.ttmeiju.me/")
             tr = tr.replace("<span class=\"loadspan\"><img width=\"20px;\" src=\"loading.gif\"></span>","")
@@ -90,10 +113,59 @@ class LatestSpider(scrapy.Spider):
 
 
     def initUrl(self):
-        with open('lhy.txt', 'r') as infile:
+        with open('users/' + glb.fileName +'.txt', 'r') as infile:
             for line in infile.readlines():
                 url, subtitle = line.split()
                 self.start_urls.append(url)
                 self.with_subtitle[url] = bool(int(subtitle))
-                
 
+def get_subtitle(url):
+    import requests
+    from bs4 import BeautifulSoup
+    import UserAgent
+    ua = UserAgent.UserAgent()
+    try:
+        r = requests.get(url, headers={
+            'User-Agent':
+                ua.random(),
+            'Accept-Language':    'zh-tw',
+            'Accept':'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+            'Connection':'keep-alive',
+            'Accept-Encoding':'gzip, deflate'
+        })
+        soup = BeautifulSoup(r.text, 'html.parser')
+        return int(soup.find("small").find('b').text)
+    except:
+        return -1
+
+
+def run_spider(spider):
+    def f(q):
+        try:
+            runner = CrawlerRunner()
+            deferred = runner.crawl(spider)
+            deferred.addBoth(lambda _: reactor.stop())
+            reactor.run()
+            q.put(None)
+        except Exception as e:
+            q.put(e)
+
+    q = Queue()
+    p = Process(target=f, args=(q,))
+    p.start()
+    result = q.get()
+    p.join()
+
+    if result is not None:
+        raise result
+
+def main():
+    for _,_,fileName in walk('users'):
+        for fn in fileName:
+            glb.fileName = fn.split('.')[0]
+            print(glb.fileName)
+            run_spider(MySpider)
+
+if __name__ == "__main__":
+    #get_subtitle("http://www.subhd.com/search0/Billions")
+    main()
