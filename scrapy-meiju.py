@@ -4,6 +4,7 @@
 from twisted.internet import reactor
 import scrapy
 from scrapy import signals 
+from scrapy.http import FormRequest, Request
 from scrapy.crawler import CrawlerRunner
 from multiprocessing import Process, Queue
 from os import walk
@@ -32,6 +33,10 @@ class MySpider(scrapy.Spider):
         crawler.signals.connect(spider.spider_opend, signal=signals.spider_opened)
         return spider
 
+    def start_requests(self):
+        return [Request("http://www.ttmeiju.me/", callback = self.get_login)]
+
+
     def spider_opend(self, spider):
         self.initUrl()
 
@@ -49,6 +54,17 @@ class MySpider(scrapy.Spider):
             html.writelines(tr)    
         html.writelines("</table>")    
         pass
+
+    def get_login(self, response):
+        return FormRequest.from_response(response,
+                                         formdata={'password': 'pw',
+                                                   'username': 'user'},
+                                         callback=self.after_login)
+    
+    def after_login(self, response):
+        for url in self.start_urls:
+            yield self.make_requests_from_url(url)
+
 
     def parse(self, response):
         url = response.url
