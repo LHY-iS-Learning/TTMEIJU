@@ -1,4 +1,4 @@
-#!/usr/bin/python  
+#!/usr/bin/python3 
 
 # -*- coding: utf-8 -*-
 from twisted.internet import reactor
@@ -11,9 +11,9 @@ from os import walk
 
 class glb:
     fileName = "lhy"
-    outputFolderName = "results"
-    #absolutePath = "/var/www/html/"
-    absolutePath = ""
+    outputFolderName = "TTMEIJU"
+    absolutePath = "/var/www/html/"
+    currentDir = "/home/ubuntu/scripts/TTMEIJU"
 
 class MySpider(scrapy.Spider):
     name = 'MySpider'
@@ -41,8 +41,11 @@ class MySpider(scrapy.Spider):
         self.initUrl()
 
     def spider_closed(self, spider, reason):
-        html = open(glb.absolutePath + glb.outputFolderName + "/" + glb.fileName + ".html","w")
-
+        absPath = glb.absolutePath + glb.outputFolderName + "/" + glb.fileName + ".html"
+        try:
+            html = open(absPath, "w")
+        except Exception as e:
+            print(e)
         html.writelines("<meta charset=\"utf-8\"> ")
         html.writelines("<html lang=\"en\">")
         html.writelines("<head>")
@@ -121,8 +124,8 @@ class MySpider(scrapy.Spider):
                     tr = tr.replace(u'搜字幕', str(num_subtitle) + " Subtitles")
 
             tr = tr.replace("href=\"/", "href=\"http://www.ttmeiju.me/")
-            tr = tr.replace("/Application/Home/View/Public/static/images/","../logo/")
-            tr = tr.replace("<span class=\"loadspan\"><img width=\"20px;\" src=\"../logo/loading.gif\"></span>","")
+            tr = tr.replace("/Application/Home/View/Public/static/images/","logo/")
+            tr = tr.replace("<span class=\"loadspan\"><img width=\"20px;\" src=\"logo/loading.gif\"></span>","")
             tr = tr.replace("style=\"display:none;\"","")
             
 
@@ -131,7 +134,7 @@ class MySpider(scrapy.Spider):
 
 
     def initUrl(self):
-        with open('users/' + glb.fileName +'.txt', 'r') as infile:
+        with open(glb.currentDir + '/users/' + glb.fileName +'.txt', 'r') as infile:
             for line in infile.readlines():
                 url, subtitle = line.split()
                 self.start_urls.append(url)
@@ -178,13 +181,17 @@ def run_spider(spider):
         raise result
 
 def main():
-    for _,_,fileName in walk('users'):
-        for fn in fileName:
-            if fn == "README.md":
-                continue
-            glb.fileName = fn.split('.')[0]
-            print("------------------------>" + glb.fileName)
-            run_spider(MySpider)
+    try:
+        workingDir = glb.currentDir + '/' + 'users/'
+        for _,_,fileName in walk(workingDir):
+            for fn in fileName:
+                if fn == "README.md":
+                    continue
+                glb.fileName = fn.split('.')[0]
+                print("------------------------>" + glb.fileName)
+                run_spider(MySpider)
+    except Exception as e:
+        print(e)
 
 if __name__ == "__main__":
     #get_subtitle("http://www.subhd.com/search0/Billions")
